@@ -8,7 +8,7 @@
   <name>JFR Crasher</name>
   <description>A reproducer for crashing JFR.</description>
 
-  <url>https://github.com/marschall/jfr-demo</url>
+  <url>https://github.com/marschall/jfr-crasher</url>
 
   <scm>
     <connection>scm:git:git@github.com:marschall/jfr-crasher.git</connection>
@@ -43,6 +43,16 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
           <release>11</release>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>com.github.marschall.jfr.crasher.JfrCrasher</mainClass>
+            </manifest>
+          </archive>
         </configuration>
       </plugin>
     </plugins>

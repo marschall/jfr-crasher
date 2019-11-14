@@ -4,6 +4,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class JfrCrasher {
 
@@ -11,16 +15,50 @@ public final class JfrCrasher {
 
   private static final String JFR_RUNNABLE = "com.github.marschall.jfr.crasher.JfrRunnable";
 
+  private volatile ClassLoader nextLoader;
+
   public void crash() {
     byte[] runnableClass = loadBytecode(JFR_RUNNABLE);
     byte[] eventClass = loadBytecode(RUNNABLE_EVENT);
     
-    ClassLoader classLoader = new PredefinedClassLoader(runnableClass, eventClass);
-    Runnable runnable = loadJfrRunnable(classLoader);
-    runnable.run();
+    int numberOfThreads = Runtime.getRuntime().availableProcessors();
+    if (numberOfThreads < 1) {
+      throw new IllegalStateException("requies more than one thread");
+    }
+    ExecutorService threadPool = Executors.newFixedThreadPool(numberOfThreads);
+    CyclicBarrier cyclicBarrier = new CyclicBarrier(numberOfThreads, () -> {
+      this.nextLoader = new PredefinedClassLoader(runnableClass, eventClass);
+    });
+    for (int i = 0; i < numberOfThreads; i++) {
+      threadPool.submit(new LoadingRunnable(cyclicBarrier));
+    }
+    threadPool.shutdown();
   }
 
-  private Runnable loadJfrRunnable(ClassLoader classLoader) {
+  final class LoadingRunnable implements Runnable {
+
+    private final CyclicBarrier barrier;
+
+    LoadingRunnable(CyclicBarrier barrier) {
+      this.barrier = barrier;
+    }
+
+    @Override
+    public void run() {
+      while (true) {
+        try {
+          this.barrier.await();
+          Runnable runnable = loadJfrRunnable(nextLoader);
+          runnable.run();
+        } catch (InterruptedException | BrokenBarrierException e) {
+          return;
+        }
+      }
+    }
+
+  }
+
+  Runnable loadJfrRunnable(ClassLoader classLoader) {
     try {
       return Class.forName(JFR_RUNNABLE, true, classLoader).asSubclass(Runnable.class).getConstructor().newInstance();
     } catch (ReflectiveOperationException e) {
@@ -63,28 +101,17 @@ public final class JfrCrasher {
       this.eventClass = eventClass;
     }
 
-//    @Override
-//    protected Class<?> findClass(String className) throws ClassNotFoundException {
-//      if (className.equals(JFR_RUNNABLE)) {
-//        return loadClassFromByteArray(className, resolve, runnableClass);
-//      } else if (className.equals(RUNNABLE_EVENT)) {
-//        return loadClassFromByteArray(className, resolve, eventClass);
-//      } else {
-//        return super.loadClass(className, resolve);
-//      }
-//    }
-    
     @Override
     protected Class<?> loadClass(String className, boolean resolve) throws ClassNotFoundException {
       // Check if we have already loaded it..
       Class<?> loadedClass = findLoadedClass(className);
       if (loadedClass != null) {
-          if (resolve) {
-              resolveClass(loadedClass);
-          }
-          return loadedClass;
+        if (resolve) {
+          resolveClass(loadedClass);
+        }
+        return loadedClass;
       }
-      
+
       if (className.equals(JFR_RUNNABLE)) {
         return loadClassFromByteArray(className, resolve, runnableClass);
       } else if (className.equals(RUNNABLE_EVENT)) {
@@ -94,8 +121,14 @@ public final class JfrCrasher {
       }
     }
 
-    private Class<?> loadClassFromByteArray(String name, boolean resolve, byte[] byteCode) throws ClassNotFoundException {
-      Class<?> clazz = defineClass(name, byteCode, 0, byteCode.length);
+    private Class<?> loadClassFromByteArray(String className, boolean resolve, byte[] byteCode) throws ClassNotFoundException {
+      Class<?> clazz;
+      try {
+        clazz = defineClass(className, byteCode, 0, byteCode.length);
+      } catch (LinkageError e) {
+        // we lost the race, somebody else loaded the class
+        clazz = findLoadedClass(className);
+      }
       if (resolve) {
         resolveClass(clazz);
       }
