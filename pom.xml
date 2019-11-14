@@ -6,7 +6,7 @@
   <version>0.1.0-SNAPSHOT</version>
   <inceptionYear>2019</inceptionYear>
   <name>JFR Crasher</name>
-  <description>A reproducer for crashing JFR.</description>
+  <description>A reproducer for a crashing JFR bug.</description>
 
   <url>https://github.com/marschall/jfr-crasher</url>
 
