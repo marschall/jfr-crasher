@@ -9,11 +9,16 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import jdk.jfr.Category;
+import jdk.jfr.Description;
+import jdk.jfr.Event;
+import jdk.jfr.Label;
+
 public final class JfrCrasher {
 
-  private static final String RUNNABLE_EVENT = "com.github.marschall.jfr.crasher.JfrRunnable$RunnableEvent";
+  static final String RUNNABLE_EVENT = "com.github.marschall.jfr.crasher.JfrCrasher$RunnableEvent";
 
-  private static final String JFR_RUNNABLE = "com.github.marschall.jfr.crasher.JfrRunnable";
+  static final String JFR_RUNNABLE = "com.github.marschall.jfr.crasher.JfrCrasher$JfrRunnable";
 
   private volatile ClassLoader nextLoader;
 
@@ -58,7 +63,7 @@ public final class JfrCrasher {
 
   }
 
-  Runnable loadJfrRunnable(ClassLoader classLoader) {
+  static Runnable loadJfrRunnable(ClassLoader classLoader) {
     try {
       return Class.forName(JFR_RUNNABLE, true, classLoader).asSubclass(Runnable.class).getConstructor().newInstance();
     } catch (ReflectiveOperationException e) {
@@ -66,7 +71,7 @@ public final class JfrCrasher {
     }
   }
 
-  private static byte[] loadBytecode(String className) {
+  static byte[] loadBytecode(String className) {
     String resource = toResourceName(className);
     ByteArrayOutputStream buffer = new ByteArrayOutputStream();
     try (InputStream inputStream = JfrCrasher.class.getClassLoader().getResourceAsStream(resource)) {
@@ -137,6 +142,35 @@ public final class JfrCrasher {
 
   }
 
+  public static final class JfrRunnable implements Runnable {
 
+    @Override
+    public void run() {
+      RunnableEvent event = new RunnableEvent();
+      event.setRunnableClassName("JfrRunnable");
+      event.begin();
+      event.end();
+      event.commit();
+    }
+  }
+
+  @Label("Runnable")
+  @Description("An executed Runnable")
+  @Category("Custom JFR Events")
+  static class RunnableEvent extends Event {
+
+    @Label("Operation Name")
+    @Description("The name of the JDBC operation")
+    private String runnableClassName;
+
+    String getRunnableClassName() {
+      return this.runnableClassName;
+    }
+
+    void setRunnableClassName(String operationName) {
+      this.runnableClassName = operationName;
+    }
+
+  }
 
 }
