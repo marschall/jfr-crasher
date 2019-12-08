@@ -25,7 +25,7 @@ public final class JfrCrasher {
   public void crash() {
     byte[] runnableClass = loadBytecode(JFR_RUNNABLE);
     byte[] eventClass = loadBytecode(RUNNABLE_EVENT);
-    
+
     int numberOfThreads = Runtime.getRuntime().availableProcessors();
     if (numberOfThreads < 1) {
       throw new IllegalStateException("requies more than one thread");
@@ -53,7 +53,7 @@ public final class JfrCrasher {
       while (true) {
         try {
           this.barrier.await();
-          Runnable runnable = loadJfrRunnable(nextLoader);
+          Runnable runnable = loadJfrRunnable(JfrCrasher.this.nextLoader);
           runnable.run();
         } catch (InterruptedException | BrokenBarrierException e) {
           return;
@@ -73,13 +73,17 @@ public final class JfrCrasher {
 
   static byte[] loadBytecode(String className) {
     String resource = toResourceName(className);
-    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
     try (InputStream inputStream = JfrCrasher.class.getClassLoader().getResourceAsStream(resource)) {
-      inputStream.transferTo(buffer);
+      byte[] buffer = new byte[8192];
+      int read;
+      while ((read = inputStream.read(buffer)) >= 0) {
+        output.write(buffer, 0, read);
+      }
     } catch (IOException e) {
       throw new UncheckedIOException("could not get bytecode of class:" + className, e);
     }
-    return buffer.toByteArray();
+    return output.toByteArray();
   }
 
   private static String toResourceName(String className) {
@@ -109,18 +113,18 @@ public final class JfrCrasher {
     @Override
     protected Class<?> loadClass(String className, boolean resolve) throws ClassNotFoundException {
       // Check if we have already loaded it..
-      Class<?> loadedClass = findLoadedClass(className);
+      Class<?> loadedClass = this.findLoadedClass(className);
       if (loadedClass != null) {
         if (resolve) {
-          resolveClass(loadedClass);
+          this.resolveClass(loadedClass);
         }
         return loadedClass;
       }
 
       if (className.equals(JFR_RUNNABLE)) {
-        return loadClassFromByteArray(className, resolve, runnableClass);
+        return this.loadClassFromByteArray(className, resolve, this.runnableClass);
       } else if (className.equals(RUNNABLE_EVENT)) {
-        return loadClassFromByteArray(className, resolve, eventClass);
+        return this.loadClassFromByteArray(className, resolve, this.eventClass);
       } else {
         return super.loadClass(className, resolve);
       }
@@ -129,13 +133,13 @@ public final class JfrCrasher {
     private Class<?> loadClassFromByteArray(String className, boolean resolve, byte[] byteCode) throws ClassNotFoundException {
       Class<?> clazz;
       try {
-        clazz = defineClass(className, byteCode, 0, byteCode.length);
+        clazz = this.defineClass(className, byteCode, 0, byteCode.length);
       } catch (LinkageError e) {
         // we lost the race, somebody else loaded the class
-        clazz = findLoadedClass(className);
+        clazz = this.findLoadedClass(className);
       }
       if (resolve) {
-        resolveClass(clazz);
+        this.resolveClass(clazz);
       }
       return clazz;
     }
@@ -159,8 +163,8 @@ public final class JfrCrasher {
   @Category("Custom JFR Events")
   static class RunnableEvent extends Event {
 
-    @Label("Operation Name")
-    @Description("The name of the JDBC operation")
+    @Label("Class Name")
+    @Description("The name of the Runnable class")
     private String runnableClassName;
 
     String getRunnableClassName() {
