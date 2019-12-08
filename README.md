@@ -7,7 +7,7 @@ JFR has a crashing bug when multiple threads call `#defineClass` at the same tim
 
 If you are using a class loader similar to this one an using multiple threads you may be affected.
 
-This bug has been reported to Oracle and has the internal review ID : 9062835.
+This bug is [JDK-8232997](https://bugs.openjdk.java.net/browse/JDK-8232997) and has been fixed in Java 14.
 
 ```java
 public class CustomClassLoader extends ClassLoader {
