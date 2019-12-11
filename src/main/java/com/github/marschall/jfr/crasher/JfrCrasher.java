@@ -27,7 +27,7 @@ public final class JfrCrasher {
     byte[] eventClass = loadBytecode(RUNNABLE_EVENT);
 
     int numberOfThreads = Runtime.getRuntime().availableProcessors();
-    if (numberOfThreads < 1) {
+    if (numberOfThreads <= 1) {
       throw new IllegalStateException("requies more than one thread");
     }
     ExecutorService threadPool = Executors.newFixedThreadPool(numberOfThreads);
@@ -65,7 +65,7 @@ public final class JfrCrasher {
 
   static Runnable loadJfrRunnable(ClassLoader classLoader) {
     try {
-      return Class.forName(JFR_RUNNABLE, true, classLoader).asSubclass(Runnable.class).getConstructor().newInstance();
+      return Class.forName(JFR_RUNNABLE, false, classLoader).asSubclass(Runnable.class).getConstructor().newInstance();
     } catch (ReflectiveOperationException e) {
       throw new RuntimeException("could not load runnable", e);
     }
