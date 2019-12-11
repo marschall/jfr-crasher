@@ -28,7 +28,7 @@ public final class JfrCrasher {
 
     int numberOfThreads = Runtime.getRuntime().availableProcessors();
     if (numberOfThreads <= 1) {
-      throw new IllegalStateException("requies more than one thread");
+      throw new IllegalStateException("requires more than one thread");
     }
     ExecutorService threadPool = Executors.newFixedThreadPool(numberOfThreads);
     CyclicBarrier cyclicBarrier = new CyclicBarrier(numberOfThreads, () -> {
