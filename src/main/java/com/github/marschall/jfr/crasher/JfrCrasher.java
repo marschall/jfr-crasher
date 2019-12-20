@@ -55,7 +55,8 @@ public final class JfrCrasher {
           this.barrier.await();
           Runnable runnable = loadJfrRunnable(JfrCrasher.this.nextLoader);
           runnable.run();
-        } catch (InterruptedException | BrokenBarrierException e) {
+        } catch (Throwable e) {
+          e.printStackTrace(System.err);
           return;
         }
       }
